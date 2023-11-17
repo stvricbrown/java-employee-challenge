@@ -1,6 +1,6 @@
 target/
 bin/
-.settings
+.settings/
 .classpath
 .project
-.gradle/**
+.gradle/

@@ -2,8 +2,11 @@ package com.example.rqchallenge.employees.model;
 
 import static java.lang.Integer.compareUnsigned;
 import static java.util.Objects.requireNonNull;
+import static org.apache.commons.lang3.builder.ToStringStyle.SHORT_PREFIX_STYLE;
 
 import java.util.Comparator;
+
+import org.apache.commons.lang3.builder.ToStringBuilder;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonGetter;
@@ -98,6 +101,18 @@ public class Employee implements Comparable<Employee>, Comparator<Employee> {
     @Override
     public int hashCode() {
         return hashCode;
+    }
+
+    @Override
+    public String toString() {
+        ToStringBuilder builder = new ToStringBuilder(this, SHORT_PREFIX_STYLE);
+
+        return builder.append("age", age)
+                      .append("name", name)
+                      .append("salary", salary)
+                      .append("id", id)
+                      .append("profileImage", profileImage)
+                      .build();
     }
 
     @Override
