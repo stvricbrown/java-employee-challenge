@@ -3,6 +3,8 @@ package com.example.rqchallenge.employees.dummy.client;
 import static org.springframework.http.HttpMethod.DELETE;
 import static org.springframework.http.HttpMethod.GET;
 import static org.springframework.http.HttpMethod.POST;
+import static org.springframework.http.HttpStatus.BAD_REQUEST;
+import static org.springframework.http.HttpStatus.NOT_FOUND;
 import static org.springframework.http.ResponseEntity.ok;
 
 import java.util.List;
@@ -41,7 +43,13 @@ public class DummyEmployeeClient {
         ResponseEntity<EmployeeByIdResponse> responseEntity =
                 restTemplate.exchange("/employee/{id}", GET, null, responseType, employeeId);
         EmployeeByIdResponse response = responseEntity.getBody();
-        return ok(response.getEmployee());
+
+        if (response.getEmployee() != null) {
+            return ok(response.getEmployee());
+        }
+
+        // The "real" service returns HTTP status 200 with a null data field when the employee does not exist.
+        return new ResponseEntity<>(NOT_FOUND);
     }
 
     public ResponseEntity<Employee> createEmployee(Map<String, Object> employeeInput) {
@@ -49,6 +57,7 @@ public class DummyEmployeeClient {
         ResponseEntity<CreateResponse> responseEntity =
                 restTemplate.exchange("/create", POST,  null, responseType, employeeInput);
         CreateResponse response = responseEntity.getBody();
+
         return ok(response.getEmployee());
     }
 
@@ -57,6 +66,14 @@ public class DummyEmployeeClient {
         ResponseEntity<DeleteEmpoyeeByIdResponse> responseEntity =
                 restTemplate.exchange("/delete/{id}", DELETE, null, responseType, employeeId);
         DeleteEmpoyeeByIdResponse response = responseEntity.getBody();
+
+        // In some cases, the "real" service can return only an error message, i.e. it does not return a status, or
+        // an employee Id.
+        if (response.getMessage().toLowerCase().contains("error")) {
+            return  new ResponseEntity<>(null, BAD_REQUEST);
+        }
+
+        // Otherwise, a delete request is always successful.
         return ok(response.getEmployeeId());
     }
 

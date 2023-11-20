@@ -1,92 +1,46 @@
-package com.example.rqchallenge;
+package com.example.rqchallenge.employees.dummy.client;
 
 import static java.lang.String.format;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.springframework.http.HttpMethod.DELETE;
 import static org.springframework.http.HttpMethod.GET;
 import static org.springframework.http.HttpMethod.POST;
+import static org.springframework.http.HttpStatus.BAD_REQUEST;
+import static org.springframework.http.HttpStatus.NOT_FOUND;
 import static org.springframework.http.HttpStatus.OK;
+import static org.springframework.http.HttpStatus.TOO_MANY_REQUESTS;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
+import static org.springframework.http.MediaType.TEXT_HTML;
 import static org.springframework.test.web.client.ExpectedCount.once;
-import static org.springframework.test.web.client.MockRestServiceServer.createServer;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 
 import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit.jupiter.SpringExtension;
-import org.springframework.test.web.client.MockRestServiceServer;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 
-import com.example.DummyEmployeeClientTestConfig;
-import com.example.rqchallenge.employees.dummy.client.DummyEmployeeClient;
-import com.example.rqchallenge.employees.dummy.client.DummyEmployeeClientConfig;
+import com.example.rqchallenge.employees.EmployeesTest;
+import com.example.rqchallenge.employees.dummy.exceptions.ServerBusyException;
 import com.example.rqchallenge.employees.model.CreateResponse;
 import com.example.rqchallenge.employees.model.DeleteEmpoyeeByIdResponse;
 import com.example.rqchallenge.employees.model.Employee;
 import com.example.rqchallenge.employees.model.EmployeeByIdResponse;
 import com.example.rqchallenge.employees.model.EmployeesResponse;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
-@ExtendWith(SpringExtension.class)
-@SpringBootTest(classes = {
-    DummyEmployeeClientConfig.class,
-    DummyEmployeeClientTestConfig.class
-})
-@TestPropertySource("DummyEmployeeClientTestConfig.properties")
-class DummyEmployeeClientTest {
-
-    private static String MOCK_SERVICE_URL = "http://localhost:8080/api/v1";
-
-    static Stream<Arguments> generateListOfEmployees() {
-        List<Employee> employees = new ArrayList<>();
-
-        employees.add(new Employee(61, "Tiger Nixon", 320800, 1, ""));
-        employees.add(new Employee(63, "Garrett Winters", 170750, 2, ""));
-        return Stream.of(
-            Arguments.of(employees)
-        );
-    }
-
-    @Autowired
-    private RestTemplate restTemplate;
-
-    @Autowired
-    private DummyEmployeeClient client;
-
-    @Value("${dummy.restapiexample.baseURL}")
-    private String baseTestUrl;
-
-    private MockRestServiceServer mockServer;
-
-    private ObjectMapper mapper = new ObjectMapper();
-
-    @BeforeEach
-    private void setUp() {
-        assertThat("Must use mock server Url.", baseTestUrl, is(equalTo(MOCK_SERVICE_URL)));
-        mockServer = createServer(restTemplate);
-    }
+class DummyEmployeeClientTest extends EmployeesTest {
+    private static String TOO_MANY_REQUESTS_PAGE = "/tooManyRequestsPage.html";
 
     @ParameterizedTest
     @MethodSource("generateListOfEmployees")
@@ -115,6 +69,34 @@ class DummyEmployeeClientTest {
     }
 
     @Test
+    void testTooManyRequests() {
+
+        // Given
+        String expectedMessage = format("The server reported \"%d: Too many requests.\"", TOO_MANY_REQUESTS.value());
+
+        int employeeId = 1;
+        String testURL = format("%s/employee/%d", baseTestUrl, employeeId);
+        URI testURI = makeTestUri(testURL);
+        String tooManyRequestsHtml = readFileFromClasspath(TOO_MANY_REQUESTS_PAGE);
+        mockServer.expect(once(), requestTo(testURI)).andExpect(method(GET))
+                                                     .andRespond(withStatus(TOO_MANY_REQUESTS)
+                                                     .contentType(TEXT_HTML)
+                                                     .body(tooManyRequestsHtml));
+
+        // When
+        ServerBusyException actualException = assertThrows(ServerBusyException.class, () -> {
+            client.getEmployeeById(employeeId);
+        });
+
+        // Then
+        mockServer.verify();
+
+        String actualMessage = actualException.getMessage();
+        assertThat("The exception message must be the expected exception message",
+                   actualMessage, is(equalTo(expectedMessage)));
+    }
+
+    @Test
     void testGetEmployeeById() {
 
         // Given
@@ -139,6 +121,37 @@ class DummyEmployeeClientTest {
         mockServer.verify();
         assertThat("The actual employee should be the expected employee",
                    actualEmployee, is(equalTo(expectedEmployee)));
+    }
+
+    @Test
+    void testGetEmployeeByIdNotFound() {
+
+        // Given
+        int employeeId = 1;
+        Employee expectedEmployee = null;
+        String expectedMessage =  "Successfully! Record has been fetched.";
+        String expectedStatus = "success";
+
+        EmployeeByIdResponse expectedEmployeeByIdResponse =
+                            new EmployeeByIdResponse(expectedEmployee, expectedMessage, expectedStatus);
+        String testURL = format("%s/employee/%d", baseTestUrl, employeeId);
+        URI testURI = makeTestUri(testURL);
+        mockServer.expect(once(), requestTo(testURI)).andExpect(method(GET))
+                                                     .andRespond(withStatus(NOT_FOUND)
+                                                     .contentType(APPLICATION_JSON)
+                                                     .body(writeTestValueAsJsonString(expectedEmployeeByIdResponse)));
+
+        // When
+        ResponseEntity<Employee> response = client.getEmployeeById(employeeId);
+
+        // Then
+        mockServer.verify();
+        Employee actualEmployee = response.getBody();
+        assertThat("The actual employee should be the expected employee",
+                   actualEmployee, is(equalTo(expectedEmployee)));
+
+        HttpStatus actualStatus = response.getStatusCode();
+        assertThat("The status code must be NOT_FOUND", actualStatus, is(equalTo(NOT_FOUND)));
     }
 
     @Test
@@ -203,34 +216,32 @@ class DummyEmployeeClientTest {
                    actualEmployeeId, is(equalTo(expectedEmployeeId)));
     }
 
-    /**
-     * Avoid having to specify {@code URISyntaxException} in the {@code throws} clause of every test method.
-     */
-    private URI makeTestUri(String testURL) {
-        try {
-            return new URI(testURL);
-        } catch (URISyntaxException use) {
-            fail(format("Invalid URI: %s. The error is %s", testURL, use.getMessage()));
+    @Test
+    void testDeleteEmployeeByIdError() {
 
-            // Keep the compiler happy. This line will never be executed.
-            return null;
-        }
+        // Given
+        int employeeId = 1;
+        String expectedMessage =  "An error occurred";
+
+        DeleteEmpoyeeByIdResponse expectedDeleteEmployeeByIdResponse =
+                            new DeleteEmpoyeeByIdResponse(null, expectedMessage, null);
+        String testURL = format("%s/delete/%d", baseTestUrl, employeeId);
+        URI testURI = makeTestUri(testURL);
+        mockServer.expect(once(), requestTo(testURI)).andExpect(method(DELETE))
+                                                     .andRespond(withStatus(BAD_REQUEST)
+                                                     .contentType(APPLICATION_JSON)
+                                                     .body(writeTestValueAsJsonString(
+                                                             expectedDeleteEmployeeByIdResponse)));
+
+        // When
+        ResponseEntity<String> response = client.deleteEmployeeById(employeeId);
+        String actualEmployeeId = response.getBody();
+
+        // Then
+        mockServer.verify();
+
+        assertThat("The actual employee Id should be null", actualEmployeeId, is(nullValue()));
+        HttpStatus actualHttpStatus = response.getStatusCode();
+        assertThat("The status code must be BAD_REQUEST", actualHttpStatus, is(equalTo(BAD_REQUEST)));
     }
-
-
-    /**
-     * Avoid having to specify {@code JsonProcessingException} in the {@code throws} clause of every test method.
-     */
-    private <T> String writeTestValueAsJsonString(T testValue) {
-
-        try {
-            return mapper.writeValueAsString(testValue);
-        } catch (JsonProcessingException jpe) {
-            fail(format("Failed to serialize %s to JSON. The error is %s", testValue, jpe.getMessage()));
-
-            // Keep the compiler happy. This line will never be executed.
-            return null;
-        }
-    }
-
 }

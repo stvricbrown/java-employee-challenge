@@ -1,15 +1,16 @@
 package com.example.rqchallenge.employees;
 
 import static com.example.rqchallenge.employees.validation.EmployeeValidator.validateEmployeeId;
+import static com.example.rqchallenge.employees.validation.EmployeeValidator.validateEmployeeInput;
 import static java.util.Comparator.comparing;
 import static java.util.stream.Collectors.toUnmodifiableList;
+import static org.apache.commons.lang3.StringUtils.isBlank;
 import static org.springframework.http.HttpStatus.OK;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.http.ResponseEntity;
 
 import com.example.rqchallenge.employees.dummy.client.DummyEmployeeClient;
@@ -17,11 +18,17 @@ import com.example.rqchallenge.employees.model.Employee;
 
 public class EmployeeController implements IEmployeeController {
 
-
     private DummyEmployeeClient dummyEmployeeClient;
 
     public EmployeeController(DummyEmployeeClient dummyEmployeeClient) {
         this.dummyEmployeeClient = dummyEmployeeClient;
+    }
+
+    /**
+     * For Mockito spy.
+     */
+    EmployeeController() {
+        // Do nothing.
     }
 
     @Override
@@ -32,7 +39,7 @@ public class EmployeeController implements IEmployeeController {
     @Override
     public ResponseEntity<List<Employee>> getEmployeesByNameSearch(String searchString) {
 
-        if (StringUtils.isBlank(searchString)) {
+        if (isBlank(searchString)) {
             throw new IllegalArgumentException("The search string must not be null, empty, or blank");
         }
 
@@ -54,15 +61,15 @@ public class EmployeeController implements IEmployeeController {
     public ResponseEntity<Integer> getHighestSalaryOfEmployees() {
         List<Employee> allEmployees = getListOfEmployees();
 
-        Employee highestSalariedEmployee = allEmployees.stream()
-                                                       .max(comparing(Employee::getSalary))
-                                                       .orElseThrow(NoSuchElementException::new);
-        highestSalariedEmployee.getSalary();
-        return new ResponseEntity<>(highestSalariedEmployee.getSalary(), OK);
-    }
+        int highestSalary = 0;
 
-    private List<Employee> getListOfEmployees() {
-        return getAllEmployees().getBody();
+        // Avoid having to handle an empty Optional<Employee>.
+        if (!allEmployees.isEmpty()) {
+            Comparator<Employee> salaryComparator = comparing(Employee::getSalary);
+            highestSalary = allEmployees.stream().max(salaryComparator).get().getSalary();
+        }
+
+        return new ResponseEntity<>(highestSalary, OK);
     }
 
     @Override
@@ -80,13 +87,17 @@ public class EmployeeController implements IEmployeeController {
 
     @Override
     public ResponseEntity<Employee> createEmployee(Map<String, Object> employeeInput) {
-         return dummyEmployeeClient.createEmployee(employeeInput);
+        validateEmployeeInput(employeeInput);
+        return dummyEmployeeClient.createEmployee(employeeInput);
     }
 
     @Override
     public ResponseEntity<String> deleteEmployeeById(String id) {
         int employeeId = validateEmployeeId(id);
         return dummyEmployeeClient.deleteEmployeeById(employeeId);
+    }
+    private List<Employee> getListOfEmployees() {
+        return getAllEmployees().getBody();
     }
 
 }

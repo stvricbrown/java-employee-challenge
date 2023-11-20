@@ -15,9 +15,9 @@ public class DeleteEmpoyeeByIdResponse {
     private final String status;
 
     @JsonCreator
-    public DeleteEmpoyeeByIdResponse(@JsonProperty(value="data", required=true) String employeeId,
+    public DeleteEmpoyeeByIdResponse(@JsonProperty(value="data", required=false) String employeeId,
                                      @JsonProperty(value="message", required=true) String message,
-                                     @JsonProperty(value="status", required=true) String status) {
+                                     @JsonProperty(value="status", required=false) String status) {
         this.employeeId = employeeId;
         this.message = message;
         this.status = status;

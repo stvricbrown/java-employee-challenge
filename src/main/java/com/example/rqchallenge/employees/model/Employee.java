@@ -38,8 +38,6 @@ public class Employee implements Comparable<Employee>, Comparator<Employee> {
      * Needs to sort in reverse order (descending) to allow the top 10 highest salaries.
      */
     public static int compareSalaryDescending(Employee lhs, Employee rhs) {
-        requireNonNull(lhs, "The lhs Employee must not be null.");
-        requireNonNull(rhs, "The rhs Employee must not be null.");
         return compareUnsigned(rhs.getSalary(), lhs.getSalary());
     }
 
